@@ -39,7 +39,7 @@ export function ContextMenu({
   /* Fermer au clic extérieur */
   useEffect(() => {
     function onDown(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (containerRef.current && e.target instanceof Element && !containerRef.current.contains(e.target)) {
         onClose();
       }
     }
