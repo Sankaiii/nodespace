@@ -24,9 +24,9 @@ export function AuthModal() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('401')) {
-        setError('Token invalide. Vérifie qu'il est bien copié.');
+        setError(`Token invalide. Vérifie qu'il est bien copié.`);
       } else if (msg.includes('403')) {
-        setError('Permissions insuffisantes. Active le scope « repo » lors de la génération du token.');
+        setError(`Permissions insuffisantes. Active le scope "repo" lors de la génération du token.`);
       } else {
         setError(`Erreur : ${msg}`);
       }
