@@ -1,31 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
-  Background,
-  BackgroundVariant,
-  Controls,
-  addEdge,
-  useNodesState,
-  useEdgesState,
-  useReactFlow,
-  type Connection,
-  type Edge,
-  type Node,
-  type NodeMouseHandler,
+  Background, BackgroundVariant, Controls,
+  addEdge, useNodesState, useEdgesState, useReactFlow,
+  type Connection, type Edge, type Node, type NodeMouseHandler,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { nanoid } from 'nanoid';
-
 import { BubbleNode } from './BubbleNode';
 import { ContextMenu } from './ContextMenu';
 import { SearchOverlay } from './SearchOverlay';
+import { CommandPalette } from './CommandPalette';
+import { OnboardingOverlay } from './OnboardingOverlay';
 import { useStore } from '../store/useStore';
 import { loadCanvas, saveCanvas } from '../utils/github';
+import { showToast } from './Toast';
 import { DEFAULT_COLORS, type NodeData, type CtxMenu, type Background as BgType } from '../types';
 
-/* ─── Types de nœuds React Flow ─── */
 const NODE_TYPES = { bubble: BubbleNode };
 
-/* ─── Variante de fond ─── */
 function bgVariant(bg: BgType): BackgroundVariant | null {
   if (bg === 'dots')  return BackgroundVariant.Dots;
   if (bg === 'grid')  return BackgroundVariant.Cross;
@@ -33,224 +25,178 @@ function bgVariant(bg: BgType): BackgroundVariant | null {
   return null;
 }
 
-/* ─── Nœud initial de bienvenue ─── */
 function makeWelcomeNodes(): Node<NodeData>[] {
   return [
-    {
-      id: 'w1',
-      type: 'bubble',
-      position: { x: 60, y: 60 },
-      data: { title: 'Bienvenue 👋', content: 'Shift+A pour ajouter une fiche\nDouble-clic pour éditer\nClic-molette pour déplacer', color: '#7F77DD', collapsed: false },
-    },
-    {
-      id: 'w2',
-      type: 'bubble',
-      position: { x: 340, y: 100 },
-      data: { title: 'Connexions', content: 'Relie les fiches via les points\nblancs sur les côtés.', color: '#1D9E75', collapsed: false },
-    },
-    {
-      id: 'w3',
-      type: 'bubble',
-      position: { x: 160, y: 270 },
-      data: { title: 'Sauvegarde GitHub', content: 'Ctrl+S → commit automatique\nsur ton dépôt privé.', color: '#D85A30', collapsed: false },
-    },
+    { id: 'w1', type: 'bubble', position: { x: 80, y: 60 },
+      data: { title: 'Bienvenue sur NodeSpace', content: 'Shift+A pour ajouter une fiche\nDouble-clic pour editer\nClic-molette pour naviguer', color: '#7F77DD', collapsed: false } },
+    { id: 'w2', type: 'bubble', position: { x: 370, y: 70 },
+      data: { title: 'Connexions', content: 'Relie les fiches via les points blancs sur les cotes.', color: '#1D9E75', collapsed: false } },
+    { id: 'w3', type: 'bubble', position: { x: 185, y: 270 },
+      data: { title: 'GitHub Sync', content: 'Ctrl+S -> commit automatique\nsur ton depot prive.', color: '#D85A30', collapsed: false } },
   ];
 }
 const WELCOME_EDGES: Edge[] = [
-  { id: 'we1', source: 'w1', target: 'w2', type: 'smoothstep', style: { stroke: '#7F77DD', strokeWidth: 1.5, opacity: 0.55 } },
-  { id: 'we2', source: 'w1', target: 'w3', type: 'smoothstep', style: { stroke: '#7F77DD', strokeWidth: 1.5, opacity: 0.55 } },
+  { id: 'we1', source: 'w1', target: 'w2', type: 'smoothstep', animated: true, style: { stroke: '#7F77DD', strokeWidth: 1.5, opacity: 0.55 } },
+  { id: 'we2', source: 'w1', target: 'w3', type: 'smoothstep', animated: true, style: { stroke: '#7F77DD', strokeWidth: 1.5, opacity: 0.55 } },
 ];
 
 export function Canvas() {
   const {
     activeProfileId, profiles, background,
-    token, username, shaCache,
+    token, username, shaCache, guestMode,
     setSha, setSaving, saving, updateProfileFlow, setSearchOpen,
+    firstLaunch, setFirstLaunch, animations,
   } = useStore();
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId)!;
+  const hasNodes = activeProfile.flow.nodes.length > 0;
 
-  /* ─── React Flow state ─── */
   const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>(
-    activeProfile.flow.nodes.length ? activeProfile.flow.nodes : makeWelcomeNodes()
+    hasNodes ? activeProfile.flow.nodes : makeWelcomeNodes()
   );
   const [edges, setEdges, onEdgesChange] = useEdgesState(
-    activeProfile.flow.nodes.length ? activeProfile.flow.edges : WELCOME_EDGES
+    hasNodes ? activeProfile.flow.edges : WELCOME_EDGES
   );
 
-  const [ctxMenu, setCtxMenu] = useState<CtxMenu | null>(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [loaded, setLoaded] = useState(false);
+  const [ctxMenu, setCtxMenu]       = useState<CtxMenu | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [mousePos, setMousePos]     = useState({ x: 0, y: 0 });
+  const [loaded, setLoaded]         = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition, getNodes, getEdges } = useReactFlow();
+  const { screenToFlowPosition, getNodes, getEdges, fitView } = useReactFlow();
 
-  /* ─── Chargement depuis GitHub au montage ─── */
+  /* Bloquer menu navigateur dans le canvas */
   useEffect(() => {
-    if (!token || !username) { setLoaded(true); return; }
-    let cancelled = false;
+    const prevent = (e: MouseEvent) => {
+      if ((e.target as Element)?.closest?.('.canvas-container')) e.preventDefault();
+    };
+    document.addEventListener('contextmenu', prevent);
+    return () => document.removeEventListener('contextmenu', prevent);
+  }, []);
 
+  /* Chargement depuis GitHub */
+  useEffect(() => {
+    if (guestMode || !token || !username) { setLoaded(true); return; }
+    let cancelled = false;
     (async () => {
       const { flow, sha } = await loadCanvas(token, username, activeProfileId);
       if (cancelled) return;
-      if (flow && (flow.nodes.length > 0)) {
+      if (flow?.nodes.length) {
         setNodes(flow.nodes);
         setEdges(flow.edges);
         if (sha) setSha(activeProfileId, sha);
       }
       setLoaded(true);
     })();
-
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionnellement vide : un seul chargement au montage (géré par key= dans App.tsx)
+  }, []);
 
-  /* ─── Connexion entre fiches ─── */
-  const onConnect = useCallback(
-    (params: Connection) => {
-      const src = nodes.find((n) => n.id === params.source);
-      setEdges((eds) =>
-        addEdge(
-          {
-            ...params,
-            type: 'smoothstep',
-            style: { stroke: src?.data.color ?? '#7F77DD', strokeWidth: 1.5, opacity: 0.55 },
-          },
-          eds
-        )
-      );
-    },
-    [nodes, setEdges]
-  );
+  /* Connexion entre fiches */
+  const onConnect = useCallback((params: Connection) => {
+    const src = nodes.find((n) => n.id === params.source);
+    setEdges((eds) => addEdge({
+      ...params,
+      type: 'smoothstep',
+      animated: animations,
+      style: { stroke: src?.data.color ?? '#7F77DD', strokeWidth: 1.5, opacity: 0.55 },
+    }, eds));
+  }, [nodes, setEdges, animations]);
 
-  /* ─── Menus contextuels ─── */
-  const onNodeContextMenu: NodeMouseHandler = useCallback((e, node) => {
+  /* Menus contextuels */
+  const onNodeCtx: NodeMouseHandler = useCallback((e, node) => {
     e.preventDefault();
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
     setCtxMenu({ type: 'node', x: e.clientX - rect.left, y: e.clientY - rect.top, nodeId: node.id });
   }, []);
 
-  const onPaneContextMenu = useCallback(
-    (e: React.MouseEvent | MouseEvent) => {
-      e.preventDefault();
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setCtxMenu({
-        type: 'pane',
-        x: (e as React.MouseEvent).clientX - rect.left,
-        y: (e as React.MouseEvent).clientY - rect.top,
-        flowPos: screenToFlowPosition({
-          x: (e as React.MouseEvent).clientX,
-          y: (e as React.MouseEvent).clientY,
-        }),
-      });
-    },
-    [screenToFlowPosition]
-  );
+  const onPaneCtx = useCallback((e: React.MouseEvent | MouseEvent) => {
+    e.preventDefault();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const ce = e as React.MouseEvent;
+    setCtxMenu({
+      type: 'pane',
+      x: ce.clientX - rect.left,
+      y: ce.clientY - rect.top,
+      flowPos: screenToFlowPosition({ x: ce.clientX, y: ce.clientY }),
+    });
+  }, [screenToFlowPosition]);
 
-  /* ─── Sauvegarde GitHub ─── */
+  /* Sauvegarde */
   const handleSave = useCallback(async () => {
+    if (guestMode) { showToast('Mode invite — donnees en local', 'info'); return; }
     if (!token || !username) return;
-    const currentNodes = getNodes() as Node<NodeData>[];
-    const currentEdges = getEdges();
-    const flow = { nodes: currentNodes, edges: currentEdges };
-
+    const flow = { nodes: getNodes() as Node<NodeData>[], edges: getEdges() };
     setSaving(true);
     try {
-      const newSha = await saveCanvas(
-        token, username, activeProfileId, flow,
-        shaCache[activeProfileId] ?? null
-      );
-      if (newSha) setSha(activeProfileId, newSha);
+      const sha = await saveCanvas(token, username, activeProfileId, flow, shaCache[activeProfileId] ?? null);
+      if (sha) setSha(activeProfileId, sha);
       updateProfileFlow(activeProfileId, flow);
+      showToast('Sauvegarde sur GitHub');
     } catch (err) {
-      console.error('Erreur de sauvegarde :', err);
-      alert('Sauvegarde échouée. Vérifie ta connexion ou ton token GitHub.');
-    } finally {
-      setSaving(false);
-    }
-  }, [token, username, activeProfileId, shaCache, getNodes, getEdges, setSaving, setSha, updateProfileFlow]);
+      showToast('Erreur de sauvegarde', 'error');
+      console.error(err);
+    } finally { setSaving(false); }
+  }, [token, username, guestMode, activeProfileId, shaCache, getNodes, getEdges, setSaving, setSha, updateProfileFlow]);
 
-  /* ─── Ajout d'une fiche ─── */
-  const addBubble = useCallback(
-    (pos: { x: number; y: number }) => {
-      setNodes((ns) => [
-        ...ns,
-        {
-          id: nanoid(),
-          type: 'bubble',
-          position: { x: pos.x - 107, y: pos.y - 17 },
-          data: {
-            title: 'Nouvelle fiche',
-            content: '',
-            color: DEFAULT_COLORS[Math.floor(Math.random() * DEFAULT_COLORS.length)],
-            collapsed: false,
-          },
-        },
-      ]);
-    },
-    [setNodes]
-  );
+  /* Ajouter */
+  const addBubble = useCallback((pos?: { x: number; y: number }) => {
+    const p = pos ?? screenToFlowPosition(mousePos);
+    setNodes((ns) => [...ns, {
+      id: nanoid(), type: 'bubble',
+      position: { x: p.x - 107, y: p.y - 17 },
+      data: {
+        title: 'Nouvelle fiche', content: '',
+        color: DEFAULT_COLORS[Math.floor(Math.random() * DEFAULT_COLORS.length)],
+        collapsed: false, isNew: true,
+      },
+    }]);
+  }, [mousePos, screenToFlowPosition, setNodes]);
 
-  /* ─── Mise à jour / suppression d'une fiche ─── */
-  const updateNode = useCallback(
-    (id: string, patch: Partial<NodeData>) =>
-      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n))),
-    [setNodes]
-  );
+  /* Dupliquer */
+  const duplicateBubble = useCallback(() => {
+    const sel = getNodes().filter((n) => n.selected);
+    if (!sel.length) return;
+    setNodes((ns) => [...ns, ...sel.map((n) => ({
+      ...n, id: nanoid(),
+      position: { x: n.position.x + 25, y: n.position.y + 25 },
+      data: { ...n.data, isNew: false },
+    }))]);
+    showToast(`${sel.length} fiche${sel.length > 1 ? 's' : ''} dupliquee${sel.length > 1 ? 's' : ''}`);
+  }, [getNodes, setNodes]);
 
-  const deleteNode = useCallback(
-    (id: string) => {
-      setNodes((ns) => ns.filter((n) => n.id !== id));
-      setEdges((es) => es.filter((e) => e.source !== id && e.target !== id));
-    },
-    [setNodes, setEdges]
-  );
+  /* Update / Delete */
+  const updateNode = useCallback((id: string, patch: Partial<NodeData>) =>
+    setNodes((ns) => ns.map((n) => n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)), [setNodes]);
 
-  /* ─── Raccourcis clavier ─── */
+  const deleteNode = useCallback((id: string) => {
+    setNodes((ns) => ns.filter((n) => n.id !== id));
+    setEdges((es) => es.filter((e) => e.source !== id && e.target !== id));
+  }, [setNodes, setEdges]);
+
+  /* Raccourcis clavier */
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const inInput = ['INPUT', 'TEXTAREA'].includes(
-        (document.activeElement?.tagName ?? '')
-      );
+      const inInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName ?? '');
+      const ctrl = e.ctrlKey || e.metaKey;
 
-      /* Shift+A — ajouter une fiche à la position du curseur */
-      if (e.shiftKey && e.key.toUpperCase() === 'A' && !inInput) {
-        e.preventDefault();
-        addBubble(screenToFlowPosition(mousePos));
-        return;
-      }
-
-      /* Ctrl/Cmd+S — sauvegarder */
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        handleSave();
-        return;
-      }
-
-      /* Ctrl/Cmd+T — rechercher */
-      if ((e.ctrlKey || e.metaKey) && e.key === 't') {
-        e.preventDefault();
-        setSearchOpen(true);
-        return;
-      }
-
-      /* Échap — fermer menus */
-      if (e.key === 'Escape') {
-        setCtxMenu(null);
-        setSearchOpen(false);
-      }
+      if (e.shiftKey && e.key.toUpperCase() === 'A' && !inInput) { e.preventDefault(); addBubble(); return; }
+      if (e.shiftKey && e.key.toUpperCase() === 'D' && !inInput) { e.preventDefault(); duplicateBubble(); return; }
+      if (ctrl && e.key === 's') { e.preventDefault(); handleSave(); return; }
+      if (ctrl && (e.key === 'f' || e.key === 't')) { e.preventDefault(); setSearchOpen(true); return; }
+      if (ctrl && e.key === ' ' && !inInput) { e.preventDefault(); setPaletteOpen(true); return; }
+      if (e.key === 'f' && !ctrl && !inInput) { fitView({ duration: 400, padding: 0.3 }); return; }
+      if (e.key === 'Home' && !inInput) { fitView({ duration: 400, padding: 0.3 }); return; }
+      if (e.key === 'Escape') { setCtxMenu(null); setPaletteOpen(false); setSearchOpen(false); }
     }
-
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [mousePos, screenToFlowPosition, addBubble, handleSave, setSearchOpen]);
+  }, [mousePos, addBubble, duplicateBubble, handleSave, setSearchOpen, fitView]);
 
-  /* ─── Mémoisation des nodeTypes ─── */
   const nodeTypes = useMemo(() => NODE_TYPES, []);
-
-  /* ─── Fond ─── */
   const variant = bgVariant(background);
 
   return (
@@ -259,83 +205,57 @@ export function Canvas() {
       className="canvas-container"
       onMouseMove={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
     >
-      {!loaded && (
-        <div
-          style={{
-            position: 'absolute', inset: 0, display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            color: 'var(--text-muted)', fontSize: 13, zIndex: 10,
-            background: 'var(--bg)',
-          }}
-        >
-          ◈ Chargement…
-        </div>
-      )}
+      {!loaded && <div className="canvas-loading">Chargement...</div>}
 
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
+        nodes={nodes} edges={edges}
+        onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onNodeContextMenu={onNodeContextMenu}
-        onPaneContextMenu={onPaneContextMenu}
-        onPaneClick={() => { setCtxMenu(null); }}
+        onNodeContextMenu={onNodeCtx}
+        onPaneContextMenu={onPaneCtx}
+        onEdgeContextMenu={(e) => e.preventDefault()}
+        onPaneClick={() => setCtxMenu(null)}
         nodeTypes={nodeTypes}
-        /* Navigation style Blender : clic-molette = pan, scroll = zoom */
         panOnDrag={[1, 2]}
         selectionOnDrag={false}
-        zoomOnScroll
-        zoomOnPinch
-        minZoom={0.1}
-        maxZoom={5}
-        defaultEdgeOptions={{ type: 'smoothstep', deletable: true }}
-        deleteKeyCode="Delete"
+        zoomOnScroll zoomOnPinch
+        minZoom={0.08} maxZoom={5}
+        defaultEdgeOptions={{ type: 'smoothstep', animated: animations, deletable: true }}
+        deleteKeyCode={['Delete', 'Backspace']}
         proOptions={{ hideAttribution: true }}
-        fitView
-        fitViewOptions={{ padding: 0.5, maxZoom: 1 }}
+        fitView fitViewOptions={{ padding: 0.4, maxZoom: 1 }}
       >
         {variant && (
-          <Background
-            variant={variant}
-            color="var(--dot)"
+          <Background variant={variant} color="var(--dot)"
             gap={background === 'dots' ? 24 : 28}
-            size={background === 'dots' ? 1.5 : 1}
-          />
+            size={background === 'dots' ? 1.5 : 1} />
         )}
         <Controls showInteractive={false} />
       </ReactFlow>
 
-      {/* Indice si le canvas est vide */}
       {nodes.length === 0 && (
-        <div className="empty-hint" style={{ pointerEvents: 'none' }}>
-          <div style={{ fontSize: 28, marginBottom: 8 }}>◈</div>
+        <div className="empty-hint">
+          <div style={{ fontSize: 26, marginBottom: 8 }}>◈</div>
           <div>Espace vide</div>
-          <div>
-            <kbd>Shift+A</kbd> pour ajouter une fiche &nbsp;·&nbsp;{' '}
-            <kbd>Clic-molette</kbd> pour déplacer
-          </div>
+          <div><kbd>Shift+A</kbd> ajouter · <kbd>Clic-molette</kbd> naviguer</div>
         </div>
       )}
 
-      {/* Badge de sauvegarde */}
-      {saving && <div className="saving-badge">◌ Sauvegarde…</div>}
+      {saving && <div className="saving-badge">Sauvegarde...</div>}
+      {guestMode && <div className="guest-badge">Mode invite — donnees locales</div>}
 
-      {/* Menu contextuel */}
       {ctxMenu && (
-        <ContextMenu
-          menu={ctxMenu}
-          nodes={nodes}
-          currentBackground={background}
-          onClose={() => setCtxMenu(null)}
-          onUpdateNode={updateNode}
-          onDeleteNode={deleteNode}
-          onAddNode={addBubble}
-        />
+        <ContextMenu menu={ctxMenu} nodes={nodes} currentBackground={background}
+          onClose={() => setCtxMenu(null)} onUpdateNode={updateNode}
+          onDeleteNode={deleteNode} onAddNode={addBubble} />
       )}
 
-      {/* Recherche */}
       <SearchOverlay nodes={nodes} />
+
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)}
+        onAddBubble={() => addBubble()} onSave={handleSave} />
+
+      {firstLaunch && <OnboardingOverlay onDismiss={() => setFirstLaunch(false)} />}
     </div>
   );
 }

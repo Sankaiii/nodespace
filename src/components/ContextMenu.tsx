@@ -1,13 +1,14 @@
 import { useEffect, useRef } from 'react';
-import type { Node } from 'reactflow';
+import { useReactFlow, type Node } from 'reactflow';
 import { useStore } from '../store/useStore';
 import { DEFAULT_COLORS, type NodeData, type CtxMenu, type Background } from '../types';
+import { nanoid } from 'nanoid';
 
-const BG_OPTIONS: { value: Background; label: string; icon: string }[] = [
-  { value: 'dots',  label: 'Points',    icon: '·' },
-  { value: 'grid',  label: 'Quadrillé', icon: '⊞' },
-  { value: 'lines', label: 'Lignes',    icon: '≡' },
-  { value: 'none',  label: 'Vide',      icon: '○' },
+const BG_OPTIONS = [
+  { value: 'dots'  as Background, label: 'Points',    icon: '.' },
+  { value: 'grid'  as Background, label: 'Quadrille', icon: '#' },
+  { value: 'lines' as Background, label: 'Lignes',    icon: '=' },
+  { value: 'none'  as Background, label: 'Vide',      icon: 'O' },
 ];
 
 interface Props {
@@ -20,125 +21,87 @@ interface Props {
   onAddNode: (pos: { x: number; y: number }) => void;
 }
 
-export function ContextMenu({
-  menu,
-  nodes,
-  currentBackground,
-  onClose,
-  onUpdateNode,
-  onDeleteNode,
-  onAddNode,
-}: Props) {
+export function ContextMenu({ menu, nodes, currentBackground, onClose, onUpdateNode, onDeleteNode, onAddNode }: Props) {
   const setBackground = useStore((s) => s.setBackground);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const { setNodes, fitView } = useReactFlow();
+  const ref = useRef<HTMLDivElement>(null);
+  const node = menu.type === 'node' ? nodes.find((n) => n.id === menu.nodeId) : null;
 
-  /* Clamp pour ne pas sortir du canvas */
-  const safeX = Math.min(menu.x, (containerRef.current?.parentElement?.offsetWidth ?? 999) - 170);
-  const safeY = Math.min(menu.y, (containerRef.current?.parentElement?.offsetHeight ?? 999) - 300);
+  const pw = ref.current?.parentElement?.offsetWidth ?? 9999;
+  const ph = ref.current?.parentElement?.offsetHeight ?? 9999;
+  const safeX = Math.min(menu.x, pw - 170);
+  const safeY = Math.min(menu.y, ph - (menu.type === 'node' ? 340 : 260));
 
-  /* Fermer au clic extérieur */
   useEffect(() => {
     function onDown(e: MouseEvent) {
-      if (containerRef.current && e.target instanceof Element && !containerRef.current.contains(e.target)) {
-        onClose();
-      }
+      if (ref.current && e.target instanceof Element && !ref.current.contains(e.target)) onClose();
     }
     window.addEventListener('mousedown', onDown);
     return () => window.removeEventListener('mousedown', onDown);
   }, [onClose]);
 
-  /* Fermer à l'Échap */
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const node = menu.type === 'node' ? nodes.find((n) => n.id === menu.nodeId) : null;
+  function duplicateNode(n: Node<NodeData>) {
+    setNodes((ns) => [...ns, {
+      id: nanoid(), type: 'bubble',
+      position: { x: n.position.x + 30, y: n.position.y + 30 },
+      data: { ...n.data, title: n.data.title + ' (copie)', isNew: false },
+    }]);
+    onClose();
+  }
 
   return (
-    <div
-      ref={containerRef}
-      className="ctx-menu"
-      style={{ left: safeX, top: safeY }}
-    >
-      {/* ── Menu sur une fiche ── */}
+    <div ref={ref} className="ctx-menu" style={{ left: safeX, top: safeY }}>
       {menu.type === 'node' && node && (
         <>
-          <div
-            className="ctx-item"
-            onClick={() => {
-              onUpdateNode(node.id, { collapsed: !node.data.collapsed });
-              onClose();
-            }}
-          >
-            <span>{node.data.collapsed ? '⊞' : '⊟'}</span>
-            {node.data.collapsed ? 'Développer' : 'Réduire'}
+          <div className="ctx-item" onClick={() => { onUpdateNode(node.id, { isNew: true }); onClose(); }}>
+            <span>F2</span> Renommer
           </div>
-
+          <div className="ctx-item" onClick={() => duplicateNode(node)}>
+            <span>+</span> Dupliquer <span className="ctx-shortcut">Shift+D</span>
+          </div>
+          <div className="ctx-item" onClick={() => { onUpdateNode(node.id, { collapsed: !node.data.collapsed }); onClose(); }}>
+            <span>{node.data.collapsed ? '+' : '-'}</span> {node.data.collapsed ? 'Developper' : 'Reduire'}
+          </div>
+          <div className="ctx-item" onClick={() => { onUpdateNode(node.id, { locked: !node.data.locked }); onClose(); }}>
+            <span>{node.data.locked ? 'U' : 'L'}</span> {node.data.locked ? 'Deverrouiller' : 'Verrouiller'}
+          </div>
           <div className="ctx-sep" />
           <div className="ctx-label">Couleur des contours</div>
           <div className="ctx-swatches">
             {DEFAULT_COLORS.map((col) => (
-              <div
-                key={col}
-                className={`swatch${node.data.color === col ? ' active' : ''}`}
-                style={{ background: col }}
-                title={col}
-                onClick={() => {
-                  onUpdateNode(node.id, { color: col });
-                  onClose();
-                }}
-              />
+              <div key={col} className={`swatch${node.data.color === col ? ' active' : ''}`}
+                style={{ background: col }} onClick={() => { onUpdateNode(node.id, { color: col }); onClose(); }} />
             ))}
           </div>
-
           <div className="ctx-sep" />
-          <div
-            className="ctx-item danger"
-            onClick={() => {
-              onDeleteNode(node.id);
-              onClose();
-            }}
-          >
-            <span>✕</span> Supprimer
+          <div className="ctx-item danger" onClick={() => { onDeleteNode(node.id); onClose(); }}>
+            <span>X</span> Supprimer <span className="ctx-shortcut">X</span>
           </div>
         </>
       )}
 
-      {/* ── Menu sur le fond ── */}
       {menu.type === 'pane' && (
         <>
-          <div
-            className="ctx-item"
-            onClick={() => {
-              if (menu.flowPos) onAddNode(menu.flowPos);
-              onClose();
-            }}
-          >
-            <span>+</span> Ajouter une fiche ici
+          <div className="ctx-item" onClick={() => { if (menu.flowPos) onAddNode(menu.flowPos); onClose(); }}>
+            <span>+</span> Nouvelle fiche <span className="ctx-shortcut">Shift+A</span>
           </div>
-
+          <div className="ctx-item" onClick={() => { fitView({ duration: 400 }); onClose(); }}>
+            <span>[]</span> Ajuster la vue <span className="ctx-shortcut">F</span>
+          </div>
           <div className="ctx-sep" />
           <div className="ctx-label">Fond du canvas</div>
-
           {BG_OPTIONS.map((opt) => (
-            <div
-              key={opt.value}
-              className="ctx-item"
+            <div key={opt.value} className="ctx-item"
               style={currentBackground === opt.value ? { color: 'var(--accent)' } : undefined}
-              onClick={() => {
-                setBackground(opt.value);
-                onClose();
-              }}
-            >
-              <span style={{ fontFamily: 'monospace' }}>{opt.icon}</span>
+              onClick={() => { setBackground(opt.value); onClose(); }}>
               {opt.label}
-              {currentBackground === opt.value && (
-                <span style={{ marginLeft: 'auto', fontSize: 10 }}>✓</span>
-              )}
+              {currentBackground === opt.value && <span style={{ marginLeft: 'auto', fontSize: 10 }}>ok</span>}
             </div>
           ))}
         </>
