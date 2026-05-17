@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useReactFlow } from 'reactflow';
 import { useStore } from '../store/useStore';
-import type { Background, Theme } from '../types';
 
 interface Command {
   id: string;
