@@ -1,0 +1,505 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Thème ────────────────────────────────────────────────── */
+:root {
+  --bg:           #191920;
+  --bg-node:      #242430;
+  --bg-bar:       #0f0f16;
+  --text:         #e0e0ec;
+  --text-muted:   #78788a;
+  --border:       rgba(255,255,255,0.08);
+  --border-s:     rgba(255,255,255,0.16);
+  --accent:       #7F77DD;
+  --dot:          rgba(255,255,255,0.06);
+}
+html.light {
+  --bg:           #eeecea;
+  --bg-node:      #ffffff;
+  --bg-bar:       #f2f0ec;
+  --text:         #1a1a22;
+  --text-muted:   #80809a;
+  --border:       rgba(0,0,0,0.08);
+  --border-s:     rgba(0,0,0,0.16);
+  --dot:          rgba(0,0,0,0.055);
+}
+
+/* ─── Base ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Layout principal ─────────────────────────────────────── */
+.app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ─── TopBar ───────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 12px;
+  background: var(--bg-bar);
+  border-bottom: 0.5px solid var(--border-s);
+  flex-shrink: 0;
+  user-select: none;
+  overflow: hidden;
+}
+.topbar-logo {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+.topbar-sep {
+  width: 0.5px;
+  height: 16px;
+  background: var(--border-s);
+  flex-shrink: 0;
+}
+.topbar-tabs {
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.topbar-tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: 0.5px solid transparent;
+  background: transparent;
+  white-space: nowrap;
+  transition: all 0.12s;
+}
+.tab-btn:hover { color: var(--text); background: var(--border); }
+.tab-btn.active {
+  color: var(--text);
+  background: var(--bg-node);
+  border-color: var(--border-s);
+}
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  background: transparent;
+  border: 0.5px solid transparent;
+  transition: all 0.12s;
+}
+.icon-btn:hover {
+  color: var(--text);
+  background: var(--border);
+  border-color: var(--border);
+}
+.icon-btn.active {
+  color: var(--accent);
+  background: rgba(127,119,221,0.12);
+  border-color: rgba(127,119,221,0.25);
+}
+
+/* ─── Canvas ───────────────────────────────────────────────── */
+.canvas-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+}
+.empty-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  pointer-events: none;
+  opacity: 0.5;
+}
+.empty-hint kbd {
+  background: var(--border-s);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: monospace;
+}
+.saving-badge {
+  position: absolute;
+  bottom: 40px;
+  right: 16px;
+  background: var(--accent);
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  pointer-events: none;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ─── StatusBar ────────────────────────────────────────────── */
+.statusbar {
+  height: 24px;
+  background: var(--bg-bar);
+  border-top: 0.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 12px;
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* ─── AuthModal ─────────────────────────────────────────────── */
+.auth-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 24px;
+}
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-node);
+  border: 0.5px solid var(--border-s);
+  border-radius: 16px;
+  padding: 36px 32px;
+}
+.auth-logo { font-size: 32px; text-align: center; margin-bottom: 8px; }
+.auth-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  margin: 0 0 6px;
+}
+.auth-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0 0 28px;
+}
+.auth-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.auth-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-bar);
+  border: 0.5px solid var(--border-s);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: monospace;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.auth-input:focus { border-color: var(--accent); }
+.auth-error {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: #E24B4A;
+  line-height: 1.5;
+}
+.auth-btn {
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.auth-btn:not(:disabled):hover { opacity: 0.88; }
+.auth-help {
+  margin: 20px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  text-align: center;
+}
+.auth-help a { color: var(--accent); text-decoration: none; }
+.auth-help a:hover { text-decoration: underline; }
+.auth-help code {
+  background: var(--border);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+/* ─── Bubble node ──────────────────────────────────────────── */
+.bubble {
+  background: var(--bg-node);
+  border: 1.5px solid var(--border-s);
+  border-radius: 10px;
+  width: 215px;
+  cursor: grab;
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: border-color 0.12s;
+}
+.bubble:active { cursor: grabbing; }
+.bubble.selected { border-color: var(--nc, var(--accent)); }
+
+.bubble-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border-bottom: 0.5px solid var(--border);
+}
+.bubble.collapsed .bubble-header { border-bottom: none; }
+
+.bubble-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.bubble-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bubble-title-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+  width: 0;
+  font-family: inherit;
+}
+.bubble-collapse-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 1px 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.12s;
+}
+.bubble-collapse-btn:hover { color: var(--text); }
+
+.bubble-body { padding: 6px 8px 8px; }
+.bubble-text {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 28px;
+}
+.bubble-placeholder { opacity: 0.4; font-style: italic; }
+.bubble-textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: vertical;
+  font-size: 10.5px;
+  color: var(--text);
+  line-height: 1.6;
+  font-family: inherit;
+  box-sizing: border-box;
+  min-height: 60px;
+}
+
+/* ─── ContextMenu ───────────────────────────────────────────── */
+.ctx-menu {
+  position: absolute;
+  z-index: 500;
+  background: var(--bg-bar);
+  border: 0.5px solid var(--border-s);
+  border-radius: 9px;
+  padding: 3px;
+  min-width: 162px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+}
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.ctx-item:hover { background: var(--border); }
+.ctx-item.danger { color: #E24B4A; }
+.ctx-sep { height: 0.5px; background: var(--border); margin: 2px 0; }
+.ctx-label {
+  padding: 4px 10px 2px;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ctx-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 5px 10px 7px;
+}
+.swatch {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+  transition: transform 0.1s;
+}
+.swatch:hover { transform: scale(1.2); }
+.swatch.active { border-color: rgba(255,255,255,0.85); }
+html.light .swatch.active { border-color: rgba(0,0,0,0.6); }
+
+/* ─── SearchOverlay ─────────────────────────────────────────── */
+.search-overlay {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 340px;
+  z-index: 400;
+  background: var(--bg-bar);
+  border: 0.5px solid var(--border-s);
+  border-radius: 11px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+.search-input {
+  width: 100%;
+  padding: 11px 14px;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--text);
+  font-family: inherit;
+  border-bottom: 0.5px solid var(--border);
+}
+.search-results { max-height: 220px; overflow-y: auto; }
+.search-item {
+  padding: 8px 14px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 0.5px solid var(--border);
+  line-height: 1.5;
+  transition: background 0.1s;
+}
+.search-item:hover { background: var(--border); color: var(--text); }
+.search-item:last-child { border-bottom: none; }
+.search-item-title { font-weight: 500; color: var(--text); }
+.search-item-preview { font-size: 10.5px; opacity: 0.65; }
+
+/* ─── React Flow overrides ──────────────────────────────────── */
+.react-flow__pane { cursor: default; }
+
+.react-flow__node {
+  background: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  width: auto !important;
+}
+
+.react-flow__handle {
+  width: 9px !important;
+  height: 9px !important;
+  background: var(--bg-bar) !important;
+  border: 1.5px solid var(--border-s) !important;
+  transition: background 0.12s, border-color 0.12s;
+}
+.react-flow__handle:hover {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+.react-flow__handle-left  { left: -5px !important; }
+.react-flow__handle-right { right: -5px !important; }
+
+.react-flow__edge-path { stroke-opacity: 0.55; }
+.react-flow__edge.selected .react-flow__edge-path { stroke-opacity: 0.9; }
+
+.react-flow__controls {
+  background: var(--bg-bar) !important;
+  border: 0.5px solid var(--border-s) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  box-shadow: none !important;
+  bottom: 36px;
+  left: 12px;
+}
+.react-flow__controls-button {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 0.5px solid var(--border) !important;
+  color: var(--text-muted) !important;
+  width: 26px !important;
+  height: 26px !important;
+}
+.react-flow__controls-button:hover { background: var(--border) !important; }
+.react-flow__controls-button svg { fill: currentColor !important; width: 12px !important; height: 12px !important; }
+.react-flow__controls-button:last-child { border-bottom: none !important; }
+
+.react-flow__background { background: var(--bg); }
