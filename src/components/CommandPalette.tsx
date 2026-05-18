@@ -6,7 +6,7 @@ interface Command {
   id: string;
   label: string;
   shortcut?: string;
-  icon?: string;
+  icon: string;
   action: () => void;
 }
 
@@ -25,40 +25,32 @@ export function CommandPalette({ open, onClose, onAddBubble, onSave }: Props) {
   const { setTheme, setBackground, setSearchOpen, theme, clearAuth } = useStore();
 
   useEffect(() => {
-    if (open) {
-      setQuery('');
-      setTimeout(() => inputRef.current?.focus(), 30);
-    }
+    if (open) { setQuery(''); setTimeout(() => inputRef.current?.focus(), 30); }
   }, [open]);
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    if (open) window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    if (!open) return;
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
   }, [open, onClose]);
 
   const COMMANDS: Command[] = [
-    { id: 'add',    label: 'Ajouter une fiche',      icon: '+',  shortcut: 'Shift+A', action: () => { onAddBubble(); onClose(); } },
-    { id: 'save',   label: 'Sauvegarder sur GitHub',  icon: '↑',  shortcut: 'Ctrl+S',  action: () => { onSave(); onClose(); } },
-    { id: 'search', label: 'Rechercher',              icon: '⌕',  shortcut: 'Ctrl+F',  action: () => { setSearchOpen(true); onClose(); } },
-    { id: 'fit',    label: 'Ajuster la vue',          icon: '⊡',  shortcut: 'F',       action: () => { fitView({ duration: 400 }); onClose(); } },
-    { id: 'theme',  label: `Thème ${theme === 'dark' ? 'clair' : 'sombre'}`, icon: '◑', action: () => { setTheme(theme === 'dark' ? 'light' : 'dark'); onClose(); } },
-    { id: 'bg-dots',  label: 'Fond : Points',   icon: '·', action: () => { setBackground('dots');  onClose(); } },
-    { id: 'bg-grid',  label: 'Fond : Quadrillé', icon: '⊞', action: () => { setBackground('grid');  onClose(); } },
-    { id: 'bg-lines', label: 'Fond : Lignes',    icon: '≡', action: () => { setBackground('lines'); onClose(); } },
-    { id: 'bg-none',  label: 'Fond : Vide',      icon: '○', action: () => { setBackground('none');  onClose(); } },
-    { id: 'logout', label: 'Se déconnecter',          icon: '⏻',              action: () => { if (confirm('Se déconnecter ?')) { clearAuth(); onClose(); } } },
+    { id: 'add',      icon: 'ti-plus',         label: 'Ajouter une fiche',       shortcut: 'Shift+A', action: () => { onAddBubble(); onClose(); } },
+    { id: 'save',     icon: 'ti-cloud-upload',  label: 'Sauvegarder sur GitHub',  shortcut: 'Ctrl+S',  action: () => { onSave(); onClose(); } },
+    { id: 'search',   icon: 'ti-search',        label: 'Rechercher',              shortcut: 'Ctrl+F',  action: () => { setSearchOpen(true); onClose(); } },
+    { id: 'fit',      icon: 'ti-focus-2',       label: 'Ajuster la vue',          shortcut: 'F',       action: () => { fitView({ duration: 400 }); onClose(); } },
+    { id: 'theme',    icon: 'ti-moon',          label: `Theme ${theme === 'dark' ? 'clair' : 'sombre'}`, action: () => { setTheme(theme === 'dark' ? 'light' : 'dark'); onClose(); } },
+    { id: 'bg-dots',  icon: 'ti-dots',          label: 'Fond : Points',           action: () => { setBackground('dots');  onClose(); } },
+    { id: 'bg-grid',  icon: 'ti-grid-4x4',      label: 'Fond : Quadrille',        action: () => { setBackground('grid');  onClose(); } },
+    { id: 'bg-lines', icon: 'ti-layout-rows',   label: 'Fond : Lignes',           action: () => { setBackground('lines'); onClose(); } },
+    { id: 'bg-none',  icon: 'ti-square',        label: 'Fond : Vide',             action: () => { setBackground('none');  onClose(); } },
+    { id: 'logout',   icon: 'ti-logout',        label: 'Se deconnecter',          action: () => { if (confirm('Se deconnecter ?')) { clearAuth(); onClose(); } } },
   ];
 
   const filtered = query.trim()
     ? COMMANDS.filter((c) => c.label.toLowerCase().includes(query.toLowerCase()))
     : COMMANDS;
-
-  function handleKey(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && filtered.length > 0) filtered[0].action();
-  }
 
   if (!open) return null;
 
@@ -67,24 +59,26 @@ export function CommandPalette({ open, onClose, onAddBubble, onSave }: Props) {
       <div className="palette-backdrop" onClick={onClose} />
       <div className="palette">
         <div className="palette-header">
-          <span className="palette-icon">⌕</span>
+          <i className="ti ti-search palette-icon" aria-hidden="true" />
           <input
             ref={inputRef}
             className="palette-input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder="Tapez une commande…"
+            onKeyDown={(e) => { if (e.key === 'Enter' && filtered.length > 0) filtered[0].action(); }}
+            placeholder="Tapez une commande..."
+            aria-label="Palette de commandes"
           />
-          <span className="palette-hint">Échap</span>
+          <span className="palette-hint">Echap</span>
         </div>
+
         <div className="palette-list">
           {filtered.length === 0 ? (
-            <div className="palette-empty">Aucune commande trouvée</div>
+            <div className="palette-empty">Aucune commande trouvee</div>
           ) : (
             filtered.map((cmd) => (
               <div key={cmd.id} className="palette-item" onClick={cmd.action}>
-                <span className="palette-item-icon">{cmd.icon}</span>
+                <i className={`ti ${cmd.icon} palette-item-icon`} aria-hidden="true" />
                 <span className="palette-item-label">{cmd.label}</span>
                 {cmd.shortcut && (
                   <span className="palette-item-shortcut">{cmd.shortcut}</span>
@@ -93,8 +87,9 @@ export function CommandPalette({ open, onClose, onAddBubble, onSave }: Props) {
             ))
           )}
         </div>
+
         <div className="palette-footer">
-          ↑↓ naviguer &nbsp;·&nbsp; Entrée sélectionner &nbsp;·&nbsp; Échap fermer
+          Entree selectionner &nbsp;·&nbsp; Echap fermer
         </div>
       </div>
     </>

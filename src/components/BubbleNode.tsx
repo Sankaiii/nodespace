@@ -1,27 +1,14 @@
 import { memo, useState, useCallback, useEffect, useRef } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow } from 'reactflow';
 import { nanoid } from 'nanoid';
-import type { NodeData, NodeStyle, NodeStatus } from '../types';
+import type { NodeData } from '../types';
 import { DEFAULT_COLORS } from '../types';
-
-const STATUS_COLORS: Record<NodeStatus, string> = {
-  none: 'transparent',
-  todo: '#378ADD',
-  inprogress: '#BA7517',
-  done: '#1D9E75',
-  urgent: '#E24B4A',
-  blocked: '#888380',
-};
-
-const STATUS_LABELS: Record<NodeStatus, string> = {
-  none: '', todo: 'A faire', inprogress: 'En cours', done: 'Termine', urgent: 'Urgent', blocked: 'Bloque',
-};
 
 export const BubbleNode = memo(function BubbleNode({ id, data, selected }: NodeProps<NodeData>) {
   const [editing, setEditing] = useState(false);
   const { setNodes, setEdges } = useReactFlow();
   const titleRef = useRef<HTMLInputElement>(null);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const bodyRef  = useRef<HTMLTextAreaElement>(null);
 
   const update = useCallback(
     (patch: Partial<NodeData>) =>
@@ -43,33 +30,29 @@ export const BubbleNode = memo(function BubbleNode({ id, data, selected }: NodeP
     if (editing) setTimeout(() => titleRef.current?.focus(), 30);
   }, [editing]);
 
-  function startEdit(e: React.MouseEvent) {
-    if (data.locked) return;
-    e.stopPropagation();
-    setEditing(true);
-  }
   function stopEdit() { setEditing(false); }
 
-  /* Mini toolbar : dupliquer / supprimer */
   function duplicate() {
-    setNodes((ns) => [...ns, {
-      id: nanoid(), type: 'bubble',
-      position: { x: (ns.find(n => n.id === id)?.position.x ?? 0) + 25, y: (ns.find(n => n.id === id)?.position.y ?? 0) + 25 },
-      data: { ...data, isNew: false },
-    }]);
+    setNodes((ns) => {
+      const me = ns.find((n) => n.id === id);
+      if (!me) return ns;
+      return [...ns, {
+        ...me, id: nanoid(), selected: false,
+        position: { x: me.position.x + 28, y: me.position.y + 28 },
+        data: { ...me.data, isNew: false },
+      }];
+    });
   }
+
   function deleteThis() {
     setNodes((ns) => ns.filter((n) => n.id !== id));
     setEdges((es) => es.filter((e) => e.source !== id && e.target !== id));
   }
 
-  const nodeStyle: NodeStyle = data.style ?? 'normal';
-  const status: NodeStatus = data.status ?? 'none';
-
   const cls = [
     'bubble',
-    `bubble-${nodeStyle}`,
-    selected   ? 'selected'  : '',
+    `bubble-${data.style ?? 'normal'}`,
+    selected       ? 'selected'  : '',
     data.collapsed ? 'collapsed' : '',
     data.locked    ? 'locked'    : '',
   ].filter(Boolean).join(' ');
@@ -78,16 +61,9 @@ export const BubbleNode = memo(function BubbleNode({ id, data, selected }: NodeP
     <div
       className={cls}
       style={{ '--nc': data.color } as React.CSSProperties}
-      onDoubleClick={startEdit}
+      onDoubleClick={(e) => { if (!data.locked) { e.stopPropagation(); setEditing(true); } }}
     >
       <Handle type="target" position={Position.Left} id="in" />
-
-      {/* Barre de statut */}
-      {status !== 'none' && (
-        <div className="bubble-status" style={{ background: STATUS_COLORS[status] }}>
-          {STATUS_LABELS[status]}
-        </div>
-      )}
 
       {/* En-tete */}
       <div className="bubble-header">
@@ -103,8 +79,8 @@ export const BubbleNode = memo(function BubbleNode({ id, data, selected }: NodeP
             onBlur={(e) => { if (e.relatedTarget !== bodyRef.current) stopEdit(); }}
             onKeyDown={(e) => {
               e.stopPropagation();
-              if (e.key === 'Tab') { e.preventDefault(); bodyRef.current?.focus(); }
-              if (e.key === 'Enter') bodyRef.current?.focus();
+              if (e.key === 'Tab')    { e.preventDefault(); bodyRef.current?.focus(); }
+              if (e.key === 'Enter')  bodyRef.current?.focus();
               if (e.key === 'Escape') e.currentTarget.blur();
             }}
           />
@@ -112,14 +88,17 @@ export const BubbleNode = memo(function BubbleNode({ id, data, selected }: NodeP
           <span className="bubble-title">{data.title}</span>
         )}
 
-        {data.locked && <span className="bubble-lock">L</span>}
+        {data.locked && (
+          <i className="ti ti-lock bubble-lock" aria-label="Verrouille" />
+        )}
 
         <button
           className="bubble-collapse-btn nodrag"
           title={data.collapsed ? 'Developper' : 'Reduire'}
+          aria-label={data.collapsed ? 'Developper' : 'Reduire'}
           onClick={(e) => { e.stopPropagation(); update({ collapsed: !data.collapsed }); }}
         >
-          {data.collapsed ? 'v' : '^'}
+          <i className={`ti ti-chevron-${data.collapsed ? 'down' : 'up'}`} aria-hidden="true" />
         </button>
       </div>
 
@@ -149,24 +128,33 @@ export const BubbleNode = memo(function BubbleNode({ id, data, selected }: NodeP
         </div>
       )}
 
-      {/* Mini toolbar (visible quand selectionne) */}
+      {/* Mini toolbar quand selectionne */}
       {selected && !editing && (
         <div className="bubble-toolbar nodrag">
-          {DEFAULT_COLORS.slice(0, 4).map((col) => (
+          {DEFAULT_COLORS.slice(0, 5).map((col) => (
             <button
               key={col}
               className="btb-color"
               style={{ background: col }}
               title={col}
+              aria-label={`Couleur ${col}`}
               onClick={(e) => { e.stopPropagation(); update({ color: col }); }}
             />
           ))}
           <div className="btb-sep" />
-          <button className="btb-btn" title="Dupliquer" onClick={(e) => { e.stopPropagation(); duplicate(); }}>+</button>
-          <button className="btb-btn" title={data.locked ? 'Deverrouiller' : 'Verrouiller'} onClick={(e) => { e.stopPropagation(); update({ locked: !data.locked }); }}>
-            {data.locked ? 'U' : 'L'}
+          <button className="btb-btn" title="Dupliquer" onClick={(e) => { e.stopPropagation(); duplicate(); }}>
+            <i className="ti ti-copy" aria-hidden="true" />
           </button>
-          <button className="btb-btn danger" title="Supprimer" onClick={(e) => { e.stopPropagation(); deleteThis(); }}>X</button>
+          <button
+            className="btb-btn"
+            title={data.locked ? 'Deverrouiller' : 'Verrouiller'}
+            onClick={(e) => { e.stopPropagation(); update({ locked: !data.locked }); }}
+          >
+            <i className={`ti ti-${data.locked ? 'lock-open' : 'lock'}`} aria-hidden="true" />
+          </button>
+          <button className="btb-btn danger" title="Supprimer" onClick={(e) => { e.stopPropagation(); deleteThis(); }}>
+            <i className="ti ti-trash" aria-hidden="true" />
+          </button>
         </div>
       )}
 

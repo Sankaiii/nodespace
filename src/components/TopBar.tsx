@@ -3,11 +3,11 @@ import { useStore } from '../store/useStore';
 import { SettingsPanel } from './SettingsPanel';
 
 export function TopBar() {
-  const profiles       = useStore((s) => s.profiles);
+  const profiles        = useStore((s) => s.profiles);
   const activeProfileId = useStore((s) => s.activeProfileId);
-  const theme          = useStore((s) => s.theme);
-  const saving         = useStore((s) => s.saving);
-  const guestMode      = useStore((s) => s.guestMode);
+  const theme           = useStore((s) => s.theme);
+  const saving          = useStore((s) => s.saving);
+  const guestMode       = useStore((s) => s.guestMode);
 
   const setActiveProfile = useStore((s) => s.setActiveProfile);
   const addProfile       = useStore((s) => s.addProfile);
@@ -16,17 +16,13 @@ export function TopBar() {
   const setTheme         = useStore((s) => s.setTheme);
   const setSearchOpen    = useStore((s) => s.setSearchOpen);
 
-  const [editingTab, setEditingTab] = useState<string | null>(null);
-  const [tabName, setTabName]       = useState('');
+  const [editingTab, setEditingTab]   = useState<string | null>(null);
+  const [tabName, setTabName]         = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   function handleAdd() {
     const name = prompt('Nom du profil :');
     if (name?.trim()) addProfile(name.trim());
-  }
-
-  function startRename(id: string, name: string) {
-    setEditingTab(id); setTabName(name);
   }
 
   function commitRename(id: string) {
@@ -41,58 +37,82 @@ export function TopBar() {
     if (confirm(`Supprimer le profil "${name}" ?`)) deleteProfile(id);
   }
 
+  function triggerSave() {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true }));
+  }
+
   return (
     <>
       <div className="topbar">
-        <span className="topbar-logo">NodeSpace</span>
+        {/* Logo */}
+        <span className="topbar-logo" title="NodeSpace">◈</span>
         <div className="topbar-sep" />
 
+        {/* Onglets profils */}
         <div className="topbar-tabs">
           {profiles.map((p) => (
             <div
               key={p.id}
               className={`tab-btn${p.id === activeProfileId ? ' active' : ''}`}
               onClick={() => setActiveProfile(p.id)}
-              onDoubleClick={() => startRename(p.id, p.name)}
+              onDoubleClick={() => { setEditingTab(p.id); setTabName(p.name); }}
               onContextMenu={(e) => handleCtxTab(e, p.id)}
             >
               {editingTab === p.id ? (
                 <input
-                  style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 11, color: 'var(--text)', width: Math.max(tabName.length * 7, 40), fontFamily: 'inherit' }}
+                  style={{
+                    background: 'transparent', border: 'none', outline: 'none',
+                    fontSize: 12, color: 'var(--text)', width: Math.max(tabName.length * 7, 48),
+                    fontFamily: 'inherit',
+                  }}
                   value={tabName}
                   autoFocus
                   onChange={(e) => setTabName(e.target.value)}
                   onBlur={() => commitRename(p.id)}
-                  onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') commitRename(p.id); if (e.key === 'Escape') setEditingTab(null); }}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') commitRename(p.id);
+                    if (e.key === 'Escape') setEditingTab(null);
+                  }}
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : p.name}
             </div>
           ))}
-          <button className="icon-btn" onClick={handleAdd} title="Nouveau profil">+</button>
+
+          <button className="icon-btn" onClick={handleAdd} title="Nouveau profil" aria-label="Nouveau profil" style={{ fontSize: 13 }}>
+            <i className="ti ti-plus" aria-hidden="true" />
+          </button>
         </div>
 
+        {/* Actions */}
         <div className="topbar-actions">
-          {guestMode && <span className="guest-label">Invite</span>}
+          {guestMode && <span className="guest-label">Invité</span>}
 
-          <button className="icon-btn" onClick={() => setSearchOpen(true)} title="Rechercher (Ctrl+F)">
-            srch
+          <button className="icon-btn" onClick={() => setSearchOpen(true)} title="Rechercher (Ctrl+F)" aria-label="Rechercher">
+            <i className="ti ti-search" aria-hidden="true" />
           </button>
 
           <button
             className={`icon-btn${saving ? ' active' : ''}`}
-            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true }))}
+            onClick={triggerSave}
             title="Sauvegarder (Ctrl+S)"
+            aria-label="Sauvegarder"
           >
-            {saving ? '...' : 'sav'}
+            <i className={`ti ti-${saving ? 'loader-2' : 'cloud-upload'}`} aria-hidden="true" />
           </button>
 
-          <button className="icon-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} title="Theme">
-            {theme === 'dark' ? 'day' : 'ngt'}
+          <button
+            className="icon-btn"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            title="Changer le thème"
+            aria-label="Changer le thème"
+          >
+            <i className={`ti ti-${theme === 'dark' ? 'sun' : 'moon'}`} aria-hidden="true" />
           </button>
 
-          <button className="icon-btn" onClick={() => setSettingsOpen(true)} title="Parametres">
-            cfg
+          <button className="icon-btn" onClick={() => setSettingsOpen(true)} title="Paramètres" aria-label="Paramètres">
+            <i className="ti ti-settings" aria-hidden="true" />
           </button>
         </div>
       </div>

@@ -41,3 +41,8 @@ export interface CtxMenu {
   nodeId?: string;
   flowPos?: { x: number; y: number };
 }
+
+export interface ImageNodeData {
+  src: string;       /* base64 WebP */
+  label?: string;
+}
