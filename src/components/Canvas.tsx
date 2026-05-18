@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
-  Background, BackgroundVariant, Controls, MiniMap,
+  Background, BackgroundVariant, Controls,
   addEdge, useNodesState, useEdgesState, useReactFlow,
   type Connection, type Edge, type Node, type NodeMouseHandler,
 } from 'reactflow';
@@ -294,11 +294,6 @@ export function Canvas() {
             size={background === 'dots' ? 1.5 : 1} />
         )}
         <Controls showInteractive={false} />
-        <MiniMap
-          nodeColor={(n) => (n.data as NodeData)?.color ?? 'var(--accent)'}
-          maskColor="rgba(0,0,0,0.5)"
-          style={{ bottom: 38, right: 14 }}
-        />
       </ReactFlow>
 
       {nodes.length === 0 && (
